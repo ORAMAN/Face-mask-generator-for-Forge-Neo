@@ -1,138 +1,119 @@
-# Face Mask Generator for Forge Neo
+# Генератор масок лиц и частей тела для Forge Neo
 
-A Forge Neo extension that generates segmentation masks for **img2img / inpainting**. Select one or more regions of a person or image, preview the resulting mask, and let the extension pass it to Forge Neo for the next generation.
+Расширение для **Forge Neo**, которое автоматически создаёт маску по исходному изображению в режиме **img2img**. Маска помогает ограничить область перерисовки: например, выделить лицо, волосы, кожу тела, одежду или фон, не подготавливая маску вручную.
 
-The Forge Neo integration is implemented in `scripts/a_person_mask_generator.py`. It uses Google's MediaPipe **Multi-class Selfie Segmentation** model.
+Для сегментации используется модель MediaPipe Selfie Segmentation. Расширение анализирует исходное изображение, объединяет выбранные категории и передаёт полученную маску в процесс генерации Forge Neo.
 
-> **This repository is the Forge Neo adaptation.** The earlier upstream project targets Automatic1111 and ComfyUI and is maintained in a separate repository: [djbielejeski/a-person-mask-generator](https://github.com/djbielejeski/a-person-mask-generator). That repository is not owned by ORAMAN; this adaptation is maintained separately.
+> Проект адаптирован для Forge Neo на основе предыдущего проекта [A Person Mask Generator](https://github.com/djbielejeski/a-person-mask-generator), созданного David Bielejeski. Исходный репозиторий принадлежит автору-предшественнику, а не ORAMAN; документация и интеграция этой версии предназначены для Forge Neo.
 
-## Features
+## Возможности
 
-- Automatically generate a mask from the source image in Forge Neo's **img2img** workflow.
-- Select one or several mask categories and combine their regions.
-- Preview the generated mask before starting generation.
-- Expand or shrink the selected area with mask dilation/erosion.
-- Optionally override Forge Neo's inpainting settings from the extension.
-- Download the segmentation model automatically on first use and reuse the local copy afterwards.
+- Автоматическое создание маски по изображению в **img2img**.
+- Выбор одной или нескольких областей сегментации.
+- Предварительный просмотр результата до запуска генерации.
+- Расширение или сужение маски с помощью дилатации и эрозии.
+- Настройка размытия маски и параметров Inpainting.
+- Автоматическая загрузка модели MediaPipe при первом использовании с последующим использованием локального файла.
 
-## Mask categories
+## Доступные области маски
 
-The extension exposes these categories from MediaPipe's multiclass segmentation model:
-
-| Category | Region |
+| Область | Что выделяется |
 | --- | --- |
-| `background` | Background |
-| `hair` | Hair |
-| `body (skin)` | Visible body skin |
-| `face (skin)` | Facial skin |
-| `clothes` | Clothing |
+| **Лицо** | Кожа лица |
+| **Волосы** | Волосы |
+| **Тело** | Видимые участки кожи тела |
+| **Одежда** | Одежда |
+| **Фон** | Фон вокруг человека |
 
-You can select multiple categories. Their masks are combined into a single result. The model's `others/accessories` category is not exposed by the current Forge Neo UI.
+Можно выбирать несколько категорий одновременно — они объединяются в одну маску. Категория аксессуаров, присутствующая в исходной модели MediaPipe, в текущем интерфейсе расширения не предлагается.
 
-The generated mask uses **white for selected/masked areas** and **black for unselected areas**.
+В результате **белым** обозначается область маски, которую нужно обрабатывать, а **чёрным** — область вне маски.
 
-## Installation
+## Установка
 
-### Option 1 — Install from the Forge Neo Extensions page
+### Установка через интерфейс Forge Neo
 
-If your Forge Neo build supports installing extensions from a Git URL:
+Если используемая сборка Forge Neo поддерживает установку расширений по Git URL:
 
-1. Open **Extensions** and choose the install-from-URL option.
-2. Enter this repository URL:
-   `https://github.com/ORAMAN/Face-mask-generator-for-Forge-Neo.git`
-3. Install the extension and restart Forge Neo completely.
+1. Откройте вкладку **Extensions** и выберите установку расширения по URL.
+2. Укажите адрес репозитория: `https://github.com/ORAMAN/Face-mask-generator-for-Forge-Neo.git`.
+3. Установите расширение и полностью перезапустите Forge Neo.
 
-### Option 2 — Install manually
+### Ручная установка
 
-Open a terminal and change to your Forge Neo installation directory. Clone the repository into its `extensions` directory:
+Откройте терминал в каталоге установки Forge Neo и выполните:
 
 ```powershell
-cd <FORGE_NEO>\extensions
+cd <ПАПКА_FORGE_NEO>\extensions
 git clone https://github.com/ORAMAN/Face-mask-generator-for-Forge-Neo.git
 ```
 
-Install the dependency using **the same Python interpreter that Forge Neo uses**. For a standard virtual environment, run:
+Зависимости необходимо устанавливать именно в Python-среду, которую использует Forge Neo. Например, если виртуальная среда называется `venv`:
 
 ```powershell
-cd <FORGE_NEO>
+cd <ПАПКА_FORGE_NEO>
 .\venv\Scripts\python.exe -m pip install -r .\extensions\Face-mask-generator-for-Forge-Neo\requirements.txt
 ```
 
-If your Forge Neo environment is named differently (for example, `venv313`), replace `.\venv\Scripts\python.exe` with the path to that environment's Python executable. Installing MediaPipe into a different system Python will not make it available to Forge Neo.
+Если в вашей сборке используется другое имя виртуальной среды, например `venv313`, укажите соответствующий путь к `python.exe`. Установка зависимости в другой системный Python не сделает её доступной внутри Forge Neo.
 
-Restart Forge Neo after installation.
+После установки перезапустите Forge Neo.
 
-## First run and model download
+## Первый запуск
 
-The extension requires the MediaPipe Python package listed in [requirements.txt](requirements.txt). On first use, it downloads Google's model file:
+Расширение использует пакет `mediapipe`, указанный в `requirements.txt`. При первом запуске оно загружает модель `selfie_multiclass_256x256.tflite` и сохраняет её в каталоге моделей Forge Neo `models/mediapipe/`. Поэтому для первой загрузки модели требуется подключение к интернету.
 
-`selfie_multiclass_256x256.tflite`
+## Использование
 
-The model is stored in Forge Neo's `models/mediapipe/` directory. An internet connection is required for the initial download; subsequent runs use the local file. The model is published by Google in the [MediaPipe image-segmentation model collection](https://developers.google.com/mediapipe/solutions/vision/image_segmenter#multiclass-model).
+1. Откройте вкладку **img2img** и загрузите исходное изображение.
+2. Разверните блок **«Генератор масок людей»**.
+3. Включите расширение флажком **«Включить»**.
+4. Выберите одну или несколько областей: лицо, волосы, тело, одежду или фон.
+5. Нажмите **«Предпросмотр маски»** и проверьте, какие участки выделены.
+6. При необходимости измените дилатацию/эрозию, параметры маски и настройки Inpainting, после чего запускайте генерацию.
 
-## How to use
+Предварительный просмотр недоступен на отдельной вкладке **«Перерисовка»**. Для проверки маски используйте **img2img**.
 
-1. Restart Forge Neo and open **img2img**.
-2. Expand **A Person Mask Generator**.
-3. Enable the extension using **Enable**.
-4. Choose one or more entries in **Mask**.
-5. Inspect **Mask Preview**. You can also change the selected categories or dilation/erosion value and preview the result again.
-6. Adjust the mask boundary if needed, then start generation.
+### Основные параметры
 
-The preview is not available on the separate **Inpaint** tab; use the img2img tab to check the mask.
-
-### Settings
-
-| Setting | Description |
+| Параметр | Назначение |
 | --- | --- |
-| **Enable** | Turns automatic mask generation on or off. Disabled by default. |
-| **Mask** | One or more segmentation categories to include in the mask. |
-| **Mask dilation / erosion, pixels** | Positive values expand the white region; negative values shrink it. `0` leaves the mask boundary unchanged. The available range is `-64` to `64`. |
-| **Preview Mask** | Generates a preview from the current img2img canvas image. |
-| **Override mask settings** | When enabled, the extension also applies the inpainting settings below. Disabled by default. |
-| **Mask blur** | Blur radius for the generated mask. Default: `4`. |
-| **Mask mode** | Choose **Inpaint masked** or **Inpaint not masked**. |
-| **Masked content** | Select the fill behavior: `fill`, `original`, `latent noise`, or `latent nothing`. Default: `original`. |
-| **Inpaint area** | Process the whole picture or only the masked area. Default: **Whole picture**. |
-| **Only masked padding, pixels** | Additional border around the masked region when **Only masked** is selected. Default: `32`. |
+| **Включить** | Разрешает автоматическое создание и применение маски. По умолчанию выключено. |
+| **Маска** | Выбор категорий, которые будут объединены в маску. |
+| **Mask dilation / erosion, pixels** | Изменяет границу маски. Положительное значение расширяет выделенную область, отрицательное — сужает. Диапазон: от `-64` до `64`; `0` не меняет границу. |
+| **Предпросмотр маски** | Создаёт изображение маски для проверки результата. |
+| **Настройки маски** | Включает переопределение настроек Inpainting параметрами расширения. По умолчанию выключено. |
+| **Размытие маски** | Степень размытия границы маски. Значение по умолчанию — `4`. |
+| **Режим маски** | Выбор между перерисовкой выделенной области и перерисовкой области вне маски. |
+| **Содержимое в маске** | Способ заполнения обрабатываемой области: `fill`, `original`, `latent noise` или `latent nothing`. По умолчанию используется исходное изображение. |
+| **Область перерисовки** | Обрабатывать всё изображение или только область маски. |
+| **Отступ для области маски** | Размер дополнительного поля вокруг выделенной области при выборе перерисовки только маски. Значение по умолчанию — `32` пикселя. |
 
-The mask category threshold is currently fixed in the implementation; there is no confidence-threshold slider in the Forge Neo UI.
+Порог уверенности модели в текущем интерфейсе фиксирован и отдельным ползунком не настраивается.
 
-## Examples
+## Пример
 
-The images below illustrate mask results and settings inherited from the earlier project. They demonstrate the type of masks the segmentation model can produce; they are **not screenshots of the current Forge Neo interface**.
+Ниже показан пример работы расширения в интерфейсе Forge Neo: исходное изображение, блок настроек генератора и предварительный просмотр маски.
 
-### Face
+![Пример генератора масок в Forge Neo](readme/01-face.png)
 
-![Example: face mask](readme/01-face.png)
+## Устранение неполадок
 
-### Face and body
+- **Расширение не отображается.** Проверьте, что каталог проекта находится непосредственно в `<ПАПКА_FORGE_NEO>/extensions/Face-mask-generator-for-Forge-Neo/`, а затем перезапустите Forge Neo.
+- **Ошибка `No module named mediapipe`.** Установите зависимости через Python, используемый вашей сборкой Forge Neo.
+- **Модель не загружается.** Проверьте подключение к интернету и наличие файла `models/mediapipe/selfie_multiclass_256x256.tflite`.
+- **Маска не создаётся.** Убедитесь, что расширение включено, исходное изображение загружено в img2img и выбрана хотя бы одна категория.
+- **Маска слишком большая или маленькая.** Попробуйте положительное значение дилатации для расширения выделения или отрицательное значение для его сужения.
 
-![Example: face and body mask](readme/02-face+body.png)
+Подробности ошибок можно посмотреть в консоли, из которой запущен Forge Neo.
 
-### Clothes and hair
+## Состав проекта
 
-![Example: clothes and hair mask](readme/03-clothes+hair.png)
+- `scripts/a_person_mask_generator.py` — интеграция с Forge Neo, интерфейс и создание маски.
+- `requirements.txt` — зависимость `mediapipe>=0.10.13`.
+- `a_person_mask_generator_comfyui.py` и `a_person_face_landmark_mask_generator_comfyui.py` — модули узлов ComfyUI, сохранённые от предшествующего проекта; они не являются точкой входа расширения Forge Neo.
+- `mask-image.py` — отдельный вспомогательный скрипт, не используемый расширением при обычной работе.
 
-## Troubleshooting
+## Лицензия
 
-- **The extension does not appear:** check that the repository is directly inside `<FORGE_NEO>/extensions/Face-mask-generator-for-Forge-Neo/`, then restart Forge Neo. The extension entry point is `scripts/a_person_mask_generator.py`.
-- **`No module named mediapipe`:** install `requirements.txt` with the Python executable used by Forge Neo, not with another system Python.
-- **The model cannot be downloaded:** check the internet connection and access to the Google-hosted model URL. The model is only downloaded when the local file is missing.
-- **No mask is generated:** make sure **Enable** is checked, an img2img source image is loaded, and at least one mask category is selected.
-- **The result covers too much or too little:** try a positive dilation value to expand the selected region or a negative value to shrink it.
-
-For diagnosis, check the Forge Neo terminal output for the extension's error messages.
-
-## Repository layout
-
-- `scripts/a_person_mask_generator.py` — Forge Neo img2img extension and mask-generation logic.
-- `requirements.txt` — Python dependency declaration (`mediapipe>=0.10.13`).
-- `a_person_mask_generator_comfyui.py` and `a_person_face_landmark_mask_generator_comfyui.py` — ComfyUI node modules retained from the upstream project; they are not the Forge Neo extension entry point.
-- `mask-image.py` — standalone legacy/test script; it is not used by the Forge Neo extension.
-
-## Attribution and license
-
-This adaptation is based on [A Person Mask Generator](https://github.com/djbielejeski/a-person-mask-generator) by David Bielejeski, which provides the original MediaPipe-based segmentation implementation and examples. The upstream repository contains its own history and documentation for the Automatic1111 and ComfyUI versions.
-
-The repository includes the original [MIT license](LICENSE). See that file for the license terms and copyright notice.
+В репозитории сохранён файл [LICENSE](LICENSE) с условиями лицензии MIT и исходным уведомлением об авторских правах.
